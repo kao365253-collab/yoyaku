@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>愉之香珈琲 席のご予約</title>
+<style>
+  :root {
+    --bg: #f7f1ea;
+    --card: #ffffff;
+    --ink: #3b2a20;
+    --muted: #8a7566;
+    --line: #e6dacd;
+    --accent: #7a4a2a;
+    --accent-ink: #ffffff;
+    --error: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { text-align: center; margin-bottom: 20px; }
+  header h1 { font-size: 22px; margin: 0; letter-spacing: .08em; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 18px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 16px 0 6px; }
+  label:first-child { margin-top: 0; }
+  .req { color: var(--accent); font-size: 12px; margin-left: 4px; }
+  input, select, textarea {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink);
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+  }
+  textarea { min-height: 72px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .times { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+  .times button {
+    font: inherit; font-size: 15px; padding: 8px 0; border-radius: 10px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer;
+  }
+  .times button small { display: block; font-size: 11px; color: var(--muted); }
+  .times button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .times button[aria-pressed="true"] small { color: var(--accent-ink); }
+  .times button:disabled { opacity: .4; cursor: not-allowed; text-decoration: line-through; }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  .error { color: var(--error); font-size: 14px; margin-top: 14px; min-height: 1em; }
+  .submit {
+    width: 100%; margin-top: 20px; padding: 14px; font: inherit; font-size: 16px; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px; cursor: pointer;
+  }
+  .submit:disabled { opacity: .5; cursor: wait; }
+  .done { text-align: center; }
+  .done h2 { font-size: 20px; margin: 0 0 8px; }
+  .done .when { font-size: 18px; font-weight: 700; margin: 12px 0; }
+  .info { margin-top: 20px; font-size: 13px; color: var(--muted); text-align: center; }
+  .demo { background: #fff6d6; border: 1px solid #ecd98b; border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="storeName">愉之香珈琲</h1>
+    <p>席のご予約</p>
+  </header>
+
+  <div id="demo" class="demo" hidden>プレビュー表示です（空き状況はサンプル、予約は送信されません）</div>
+
+  <form id="form" class="card" novalidate>
+    <label for="date">日付<span class="req">必須</span></label>
+    <input type="date" id="date" required>
+    <p class="hint">第1水曜日は定休日です</p>
+
+    <label>時間<span class="req">必須</span></label>
+    <div id="times" class="times"></div>
+    <p id="timesHint" class="hint">日付を選ぶと空き時間が表示されます</p>
+
+    <label for="people">人数<span class="req">必須</span></label>
+    <select id="people" required></select>
+
+    <label for="name">お名前<span class="req">必須</span></label>
+    <input type="text" id="name" autocomplete="name" maxlength="50" required>
+
+    <label for="phone">電話番号<span class="req">必須</span></label>
+    <input type="tel" id="phone" autocomplete="tel" inputmode="tel" placeholder="090-1234-5678" required>
+
+    <label for="note">ご要望（任意）</label>
+    <textarea id="note" maxlength="300" placeholder="ベビーカーあり など"></textarea>
+
+    <div id="error" class="error" role="alert"></div>
+    <button type="submit" id="submit" class="submit">予約する</button>
+  </form>
+
+  <div id="done" class="card done" hidden>
+    <h2>ご予約ありがとうございます</h2>
+    <div class="when" id="doneWhen"></div>
+    <div id="doneWho"></div>
+    <p class="hint">ご利用は2時間制です。変更・キャンセルはお電話でご連絡ください。</p>
+  </div>
+
+  <div class="info">
+    営業時間 6:00〜21:50（L.O. 21:30）／モーニング 〜12:00<br>
+    定休日 第1水曜日
+  </div>
+</div>
+
+<script>
+  // Apps ScriptのウェブアプリURL（GitHub Pagesなど外部に置くときに使う）
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzRXEEOfDSyK6vPDOxGK1XOK1Ers0QIC3zm0twe5faLxki0mUuXOqqzxjGesApsLyRD/exec';
+
+  // Apps Script上では google.script.run、外部では GAS_URL に問い合わせ、どちらもなければサンプルで動く
+  const onGas = typeof google !== 'undefined' && google.script;
+  const isDemo = !onGas && !GAS_URL;
+  const api = onGas ? gasApi() : GAS_URL ? fetchApi(GAS_URL) : demoApi();
+
+  const el = (id) => document.getElementById(id);
+  let selectedTime = '';
+
+  api.call('getConfig').then((cfg) => {
+    el('storeName').textContent = cfg.storeName;
+    for (let n = cfg.minPeople; n <= cfg.maxPeople; n++) {
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n + '名';
+      el('people').appendChild(o);
+    }
+    const today = new Date();
+    const max = new Date(today.getFullYear(), today.getMonth(), today.getDate() + cfg.daysAhead);
+    el('date').min = ymd(today);
+    el('date').max = ymd(max);
+  });
+  if (isDemo) el('demo').hidden = false;
+
+  el('date').addEventListener('change', loadTimes);
+  el('people').addEventListener('change', renderTimes);
+
+  let slots = [];
+  function loadTimes() {
+    selectedTime = '';
+    slots = [];
+    el('times').innerHTML = '';
+    if (!el('date').value) return;
+    el('timesHint').textContent = '読み込み中…';
+    api.call('getAvailability', el('date').value).then((res) => {
+      if (res.closed) { el('timesHint').textContent = 'この日は定休日です'; return; }
+      slots = res.slots;
+      renderTimes();
+    }).catch(showError);
+  }
+
+  function renderTimes() {
+    const people = Number(el('people').value);
+    el('times').innerHTML = '';
+    if (!el('date').value) return;
+    if (!slots.length) { el('timesHint').textContent = 'この日は予約できる時間がありません'; return; }
+    slots.forEach((s) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s.time;
+      const sub = document.createElement('small');
+      const ok = s.remaining >= people;
+      sub.textContent = ok ? (s.remaining <= 4 ? '残りわずか' : '空きあり') : '満席';
+      b.appendChild(sub);
+      b.disabled = !ok;
+      if (!ok && selectedTime === s.time) selectedTime = '';
+      b.setAttribute('aria-pressed', String(selectedTime === s.time));
+      b.addEventListener('click', () => { selectedTime = s.time; renderTimes(); });
+      el('times').appendChild(b);
+    });
+    el('timesHint').textContent = 'ご利用は2時間制です';
+  }
+
+  el('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    el('error').textContent = '';
+    const data = {
+      date: el('date').value,
+      time: selectedTime,
+      people: Number(el('people').value),
+      name: el('name').value.trim(),
+      phone: el('phone').value.trim(),
+      note: el('note').value.trim(),
+    };
+    if (!data.date) return showError('日付を選んでください');
+    if (!data.time) return showError('時間を選んでください');
+    if (!data.name) return showError('お名前を入力してください');
+    if (!data.phone) return showError('電話番号を入力してください');
+
+    el('submit').disabled = true;
+    el('submit').textContent = '送信中…';
+    api.call('reserve', data).then((res) => {
+      el('form').hidden = true;
+      el('done').hidden = false;
+      el('doneWhen').textContent = res.when;
+      el('doneWho').textContent = res.name + ' 様　' + res.people + '名';
+      window.scrollTo(0, 0);
+    }).catch((err) => {
+      showError(err);
+      el('submit').disabled = false;
+      el('submit').textContent = '予約する';
+      loadTimes();
+    });
+  });
+
+  function showError(err) {
+    el('error').textContent = (err && err.message) ? err.message.replace(/^Error:\s*/, '') : String(err);
+  }
+
+  function ymd(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function gasApi() {
+    return {
+      call(fn, ...args) {
+        return new Promise((resolve, reject) => {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+        });
+      },
+    };
+  }
+
+  function fetchApi(url) {
+    return {
+      call(fn, ...args) {
+        let req;
+        if (fn === 'reserve') {
+          // text/plain にすると事前確認なしで Apps Script に届く
+          req = fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(args[0]) });
+        } else if (fn === 'getAvailability') {
+          req = fetch(url + '?action=availability&date=' + encodeURIComponent(args[0]));
+        } else {
+          req = fetch(url + '?action=config');
+        }
+        return req
+          .catch(() => { throw new Error('通信できませんでした。電波の良い場所でもう一度お試しください'); })
+          .then((r) => r.json())
+          .then((res) => {
+            if (!res.ok) throw new Error(res.error);
+            return res.data;
+          });
+      },
+    };
+  }
+
+  function demoApi() {
+    const handlers = {
+      getConfig: () => ({ storeName: '愉之香珈琲', minPeople: 1, maxPeople: 10, daysAhead: 60, slotMinutes: 120 }),
+      getAvailability: (date) => {
+        const d = new Date(date + 'T00:00');
+        if (d.getDay() === 3 && d.getDate() <= 7) return { closed: true, slots: [] };
+        const slots = [];
+        for (let m = 360; m <= 1170; m += 30) {
+          const t = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+          slots.push({ time: t, remaining: [20, 12, 3, 0, 8][(m / 30) % 5] });
+        }
+        return { closed: false, slots };
+      },
+      reserve: (f) => ({ when: f.date + ' ' + f.time + '〜（2時間）', name: f.name, people: f.people }),
+    };
+    return { call: (fn, ...args) => new Promise((r) => setTimeout(() => r(handlers[fn](...args)), 200)) };
+  }
+</script>
+</body>
+</html>
